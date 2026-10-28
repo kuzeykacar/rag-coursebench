@@ -61,6 +61,10 @@ What this already shows:
 3. **Paragraph chunks are the worst** here. Slides have no real paragraphs, so the splitter makes tiny, context-poor
    chunks. Fixed 200-word windows that cross slide boundaries do better.
 
+**Known bias.** I wrote the questions while reading the pages, so they share more words with the slides than a
+real student's question would. That favours keyword search; the same-language numbers above are probably optimistic.
+A second set of questions written without looking at the slides is planned.
+
 Next: dense and hybrid retrievers, the reranker, and an end-to-end answer accuracy test with a local LLM.
 
 ## Run it
