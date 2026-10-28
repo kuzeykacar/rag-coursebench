@@ -1,0 +1,6 @@
+pypdf>=4
+numpy
+pandas
+scikit-learn
+# dense retrieval + reranking (run on a machine that can download models from Hugging Face)
+sentence-transformers>=3
