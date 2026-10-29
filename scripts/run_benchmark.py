@@ -31,14 +31,26 @@ if __name__ == "__main__":
     ap.add_argument("--pages", default="work/pages.jsonl"); ap.add_argument("--questions", default="data/questions.jsonl")
     ap.add_argument("--chunking", nargs="*", default=list(STRATEGIES)); ap.add_argument("--dense", action="store_true")
     ap.add_argument("--rerank", action="store_true"); ap.add_argument("--out", default="results")
+    ap.add_argument("--resume", help="CSV of rows already computed; those (chunking, retriever) pairs are skipped")
     args = ap.parse_args()
     pages = [json.loads(l) for l in open(args.pages)]; Q = load_questions(args.questions)
     docs = {p["doc"] for p in pages}; Q = [q for q in Q if q["doc"] in docs]
     rows, ranks = [], {}
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    done = set()
+    if args.resume and Path(args.resume).exists():
+        prev = pd.read_csv(args.resume); rows = prev.to_dict("records"); done = set(zip(prev.chunking, prev.retriever))
     for cname in args.chunking:
         chunks = STRATEGIES[cname](pages)
         for rname, make in retrievers(args):
-            t0 = time.time(); r = make().fit(chunks); m, rk = evaluate(r, chunks, Q)
+            if (cname, rname) in done:
+                continue
+            t0 = time.time()
+            try:
+                r = make().fit(chunks); m, rk = evaluate(r, chunks, Q)
+            except RuntimeError as e:                       # e.g. out of GPU memory: record it and go on
+                print("FAILED", cname, rname, str(e)[:200], flush=True)
+                continue
             lo, hi = bootstrap(rk, 5)
             row = dict(chunking=cname, retriever=rname, n_chunks=len(chunks), **{k: round(v, 3) for k, v in m.items()},
                        r5_lo=round(lo, 3), r5_hi=round(hi, 3), seconds=round(time.time() - t0, 1))
@@ -47,6 +59,10 @@ if __name__ == "__main__":
                 row[f"recall@5[{kind}]"] = round(sum(rk[i] is not None and rk[i] <= 5 for i in idx) / len(idx), 3)
             rows.append(row); ranks[f"{cname}|{rname}"] = rk
             print(row, flush=True)
-    Path(args.out).mkdir(exist_ok=True)
+            pd.DataFrame(rows).to_csv(f"{args.out}/retrieval.csv", index=False)      # save after every row
+            try:
+                import gc, torch; gc.collect(); torch.mps.empty_cache()
+            except Exception:
+                pass
     pd.DataFrame(rows).to_csv(f"{args.out}/retrieval.csv", index=False)
     json.dump({"questions": [q["id"] for q in Q], "ranks": ranks}, open(f"{args.out}/ranks.json", "w"))

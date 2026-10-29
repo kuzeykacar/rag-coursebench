@@ -7,4 +7,4 @@ pip install -q -r requirements.txt
 [ -f data/manifest.json ] || cp data/manifest.example.json data/manifest.json
 mkdir -p work
 python -m rcb.ingest data/manifest.json work/pages.jsonl
-python scripts/run_benchmark.py --dense --rerank --out results/full
+python scripts/run_benchmark.py --dense --rerank --out results/full ${RESUME:+--resume "$RESUME"}

@@ -57,7 +57,8 @@ class Dense:
     def fit(self, chunks):
         from sentence_transformers import SentenceTransformer
         self.m = SentenceTransformer(self.model_name)
-        self.E = self.m.encode([self.dp + c["text"] for c in chunks], batch_size=32, normalize_embeddings=True,
+        self.m.max_seq_length = min(self.m.max_seq_length or 512, 512)   # chunks are <= ~550 tokens; caps memory
+        self.E = self.m.encode([self.dp + c["text"] for c in chunks], batch_size=8, normalize_embeddings=True,
                                show_progress_bar=False)
         return self
     def scores(self, q):
@@ -88,8 +89,8 @@ class Rerank:
         self.name = base.name + "+rerank:" + model.split("/")[-1]
     def fit(self, chunks):
         from sentence_transformers import CrossEncoder
-        self.base.fit(chunks); self.chunks = chunks; self.ce = CrossEncoder(self.model_name); return self
+        self.base.fit(chunks); self.chunks = chunks; self.ce = CrossEncoder(self.model_name, max_length=512); return self
     def search(self, q, k=10):
         cand = self.base.search(q, self.depth)
-        s = self.ce.predict([(q, self.chunks[i]["text"]) for i in cand])
+        s = self.ce.predict([(q, self.chunks[i]["text"]) for i in cand], batch_size=4)
         return [cand[j] for j in np.argsort(-s)[:k]]
